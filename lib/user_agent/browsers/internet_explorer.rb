@@ -2,9 +2,10 @@ class UserAgent
   module Browsers
     class InternetExplorer < Base
       def self.extend?(agent)
-        agent.application &&
-          agent.application.comment &&
-          agent.application.comment[1] =~ /MSIE/
+        return false unless agent.application && agent.application.comment
+        comment = agent.application.comment
+        (comment[0] == "compatible" && comment[1] =~ /MSIE/) || # <= IE10
+        (comment[0] =~ /Windows NT/ && comment[3] =~ /rv:[\d\.]+/) # >= IE11+
       end
 
       def browser
@@ -12,9 +13,12 @@ class UserAgent
       end
 
       def version
-        if version = application.comment[1][/MSIE ([\d\.]+)/, 1]
-          Version.new(version)
-        end
+        version_str = if old_ie?
+                        application.comment[1].sub("MSIE ", "")
+                      else
+                        application.comment[3].sub("rv:", "")
+                      end
+        Version.new(version_str)
       end
 
       def compatibility_view?
@@ -36,7 +40,21 @@ class UserAgent
       end
 
       def os
-        OperatingSystems.normalize_os(application.comment[2])
+        os_str = if old_ie?
+                   application.comment[2]
+                 else
+                   application.comment[0]
+                 end
+        OperatingSystems.normalize_os(os_str)
+      end
+
+      private
+      def old_ie?()
+        application.comment[1] =~ /MSIE/
+      end
+
+      def new_ie?()
+        !old_ie?
       end
     end
   end
